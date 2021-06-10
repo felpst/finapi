@@ -23,6 +23,18 @@ function verifyIfExistsAccountCPF(req, res, next) { // next é o que define se o
     return next();
 }
 
+function getBalance(statement){
+    const balance = statement.reduce((acc, operation) => {
+        if(operation.type === "credit"){
+            return acc + operation.amount;
+        }
+        else{
+            return acc - operation.amount;
+        }
+    }, 0); //Pega as informações dos valores que são passados e transforma tudo em um só valor. O acc é a variável responsável para ir adicionando ou removendo os valores que serão adicionados. Aqui o acc foi iniciado como 0;
+    return balance;
+}
+
 /**
  * cpf - string
  * name - string
@@ -71,6 +83,72 @@ app.post("/deposit", verifyIfExistsAccountCPF, (req, res) => {
     customer.statement.push(statementOperation);
 
     return res.status(201).send();
+})
+
+app.post("/withdraw", verifyIfExistsAccountCPF, (req, res) => {
+    const { amount } = req.body;
+    const { customer } = req;
+
+    const balance = getBalance(customer.statement);
+
+    if(balance < amount){
+        return res.status(400).json({error: "Insufficient funds!"});
+    }
+
+    const statementOperation = {
+        amount,
+        created_at: new Date(),
+        type: "debit"
+    };
+
+    customer.statement.push(statementOperation);
+
+    return res.status(201).send();
+})
+
+app.get("/statement/date", verifyIfExistsAccountCPF, (req, res) => { 
+    const { customer } = req;
+    const { date } = req.query;
+
+    const dateFormat = new Date(date + " 00:00"); // Adicionando a hora "00:00" eu consigo fazer a busca do dia independente da hora.
+
+    const statement = customer.statement.filter(
+        (statement) => 
+        statement.created_at.toDateString() === new Date(dateFormat).toDateString()
+    );
+
+    return res.json(statement);
+})
+
+app.put("/account", verifyIfExistsAccountCPF, (req, res) => {
+    const { name } = req.body;
+    const { customer } = req;
+
+    customer.name = name;
+
+    return res.status(201).send();
+})
+
+app.get("/account", verifyIfExistsAccountCPF, (req, res) => {
+    const { customer } = req;
+
+    return res.json(customer);
+})
+
+app.delete("/account", verifyIfExistsAccountCPF, (req, res) => {
+    const { customer } = req;
+
+    // splice
+    customers.splice(customer, 1); // Primeiro parâmetro é para indicar onde o splice deve começar, o segundo parâmetro é para indicar quantos elementos ele deve remover.
+
+    return res.status(200).json(customers);
+})
+
+app.get("/balance", verifyIfExistsAccountCPF, (req, res) => {
+    const { customer } = req;
+    const balance = getBalance(customer.statement);
+
+    return res.json(balance);
 })
 
 app.listen(3030);
